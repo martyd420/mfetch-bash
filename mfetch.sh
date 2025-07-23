@@ -166,8 +166,8 @@ print_dmi_details() {
 
 
 main() {
-    printf "${GREEN}${BOLD}📦 mfetch-bash${NC}\n"
-    printf "${BRIGHT_BLACK}memory-focused system info tool\n\n${NC}"
+    printf "${GREEN}${BOLD}📦 mfetch-bash${NC} "
+    printf "${BRIGHT_BLACK}[memory-focused system info tool]\n\n${NC}"
 
 
     collect_dmi_data
