@@ -24,6 +24,17 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 
+check_command() {
+    command_name=$1
+    if ! command -v "$command_name" &> /dev/null
+    then
+        echo "Command '$command_name' not found. Install it using: sudo apt install $command_name"
+        echo
+        exit 1
+    fi
+}
+
+
 print_bar() {
     local label="$1"
     local current="$2"
@@ -169,6 +180,9 @@ main() {
     printf "${GREEN}${BOLD}📦 mfetch-bash${NC} "
     printf "${BRIGHT_BLACK}[memory-focused system info tool]\n\n${NC}"
 
+
+    check_command "dmidecode"
+    check_command "bc"
 
     collect_dmi_data
     get_array_info
