@@ -9,6 +9,10 @@ BRIGHT_BLACK='\033[0;90m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color (reset)
 
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run as root (e.g. with sudo)" >&2
+  exit 1
+fi
 
 get_mem_info() {
     if [[ ! -r "/proc/meminfo" ]]; then
