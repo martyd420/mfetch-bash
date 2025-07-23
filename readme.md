@@ -11,7 +11,6 @@ This script is a Bash reimplementation heavily inspired by the original `mfetch`
 curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/master/mfetch.sh | sudo bash
 ```
 
-<<<<<<< HEAD
 ### Screenshot
 
 ![Screenshot](screenshot.png)
@@ -45,7 +44,3 @@ If you are missing any of these tools, you can install them using your distribut
     ```bash
     sudo dnf install dmidecode bc
     ```
-
-=======
-![Screenshot](screenshot.png)
->>>>>>> a55657967047d7f3fefb63eed4b02297aea6ce7e
