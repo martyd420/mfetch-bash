@@ -6,3 +6,6 @@ Usage:
 
 ```bash
 curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/master/mfetch.sh | sudo bash
+```
+
+![Screenshot](screenshot.png)
