@@ -11,6 +11,12 @@ This script is a Bash reimplementation heavily inspired by the original `mfetch`
 curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/master/mfetch.sh | sudo bash
 ```
 
+To use a specific, immutable (but old) commit, you can specify the commit SHA directly. This ensures the script you download is exactly what you've reviewed and will never change.
+
+```bash
+curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/73d5fdc9d1e9ddb3ab4490a96ef33abf57f8a679/mfetch.sh | sudo bash
+```
+
 ### Screenshot
 
 ![Screenshot](screenshot.png)
