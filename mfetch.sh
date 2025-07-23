@@ -138,6 +138,8 @@ parse_dmi_block() {
 
     printf "  ${MAGENTA}🧠 Slot${NC}: %-20s ${MAGENTA}📍 Bank${NC}: %s\n" "$(get_val "Locator")" "$(get_val "Bank Locator")"
     printf "  ${MAGENTA}📦 Size${NC}: %s\n" "$size"
+    printf "  ${MAGENTA}🏭 Manufacturer${NC}: %s\n" "$(get_val "Manufacturer")"
+    printf "  ${MAGENTA}🏷️ Part Number${NC}: %s\n" "$(get_val "Part Number")"
     printf "  ${MAGENTA}✅ ECC${NC}: $(get_val "Error Correction Type")\n"
     printf "  ${MAGENTA}🔌 Voltage${NC}: $(get_val "Configured Voltage")\n"
     printf "\n"
