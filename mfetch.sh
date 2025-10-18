@@ -13,12 +13,74 @@ BRIGHT_BLACK='\033[0;90m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+declare -A BANK_OCCURRENCES=()
+
+# Normalizes the "Bank Locator" value into a more descriptive label.
+# Many vendors report values such as "P0 CHANNEL A" where the "P" prefix
+# references the physical CPU socket.  Converting them to a readable form
+# makes it obvious which channel the DIMM belongs to.
+format_bank_locator() {
+    local raw="$1"
+    if [[ -z "$raw" || "$raw" == "-" ]]; then
+        printf '-\n'
+        return
+    fi
+
+    local trimmed
+    trimmed=$(printf '%s\n' "$raw" | awk '{$1=$1; print}')
+
+    if [[ "$trimmed" =~ ^P([0-9]+)[[:space:]]+CHANNEL[[:space:]]+(.+)$ ]]; then
+        local cpu="${BASH_REMATCH[1]}"
+        local channel="${BASH_REMATCH[2]}"
+        printf 'CPU %s / Channel %s\n' "$cpu" "$channel"
+        return
+    fi
+
+    if [[ "$trimmed" =~ ^P([0-9]+)[[:space:]]+BANK[[:space:]]+([0-9]+)$ ]]; then
+        local cpu="${BASH_REMATCH[1]}"
+        local bank="${BASH_REMATCH[2]}"
+        printf 'CPU %s / Bank %s\n' "$cpu" "$bank"
+        return
+    fi
+
+    printf '%s\n' "$trimmed"
+}
+
+# Adds a stable suffix when multiple DIMMs report the same bank label so the
+# output stays unique even on platforms that duplicate the vendor string.
+decorate_bank_label() {
+    local label="$1"
+
+    if [[ -z "$label" || "$label" == "-" ]]; then
+        printf '-\n'
+        return
+    fi
+
+    local count=1
+    if [[ -v BANK_OCCURRENCES[$label] ]]; then
+        count=$(( BANK_OCCURRENCES[$label] + 1 ))
+    fi
+    BANK_OCCURRENCES[$label]=$count
+
+    if (( count > 1 )); then
+        printf '%s (module #%d)\n' "$label" "$count"
+    else
+        printf '%s\n' "$label"
+    fi
+}
+
 # Generic function to extract a value for a given key from a block of text.
 # It's designed to be resilient, returning "-" if the key is not found.
 get_val_from_block() {
     local block="$1"
     local key="$2"
-    grep -oP "^\s*${key}:\s*\K.*" <<< "$block" || echo "-"
+    local value
+    value=$(printf '%s\n' "$block" | sed -n "s/^[[:space:]]*${key}:[[:space:]]*//p" | head -n1)
+    if [[ -n "$value" ]]; then
+        printf '%s\n' "$value"
+    else
+        printf '-\n'
+    fi
 }
 
 # Checks if a command is available in the system's PATH.
@@ -43,16 +105,34 @@ print_bar() {
     local FILLED_CHAR="#"
     local EMPTY_CHAR="-"
 
-    # Avoid division by zero if total is 0 or less.
-    if (( $(echo "$total <= 0" | bc -l) )); then return; fi
+    local stats
+    if ! stats=$(awk -v current="$current" -v total="$total" -v width="$BAR_WIDTH" 'BEGIN {
+            if (total <= 0) {
+                exit 1
+            }
+            perc = (current / total) * 100
+            if (perc < 0) {
+                perc = 0
+            }
+            if (perc > 100) {
+                perc = 100
+            }
+            filled = int((perc / 100) * width + 0.5)
+            if (filled > width) {
+                filled = width
+            }
+            printf "%.2f %.0f", perc, filled
+        }'); then
+        return
+    fi
 
-    local percentage; percentage=$(printf "%.2f" "$(echo "scale=4; ($current / $total) * 100" | bc -l)")
-    local filled_blocks; filled_blocks=$(printf "%.0f" "$(echo "scale=4; ($percentage / 100) * $BAR_WIDTH" | bc -l)")
-    local empty_blocks; empty_blocks=$(( BAR_WIDTH - filled_blocks ))
+    local percentage filled_blocks
+    read -r percentage filled_blocks <<< "$stats"
+    local empty_blocks=$(( BAR_WIDTH - filled_blocks ))
 
-    # Create the filled and empty parts of the bar.
-    local filled_segment; filled_segment=$(printf "%${filled_blocks}s" | tr ' ' "$FILLED_CHAR")
-    local empty_segment; empty_segment=$(printf "%${empty_blocks}s" | tr ' ' "$EMPTY_CHAR")
+    local filled_segment empty_segment
+    filled_segment=$(printf "%${filled_blocks}s" | tr ' ' "$FILLED_CHAR")
+    empty_segment=$(printf "%${empty_blocks}s" | tr ' ' "$EMPTY_CHAR")
 
     printf "  ${label}: [${filled_color}%s${empty_color}%s${NC}] ${percentage}%%\n" "$filled_segment" "$empty_segment"
 }
@@ -65,13 +145,16 @@ get_ram_info() {
     fi
 
     # Extract memory values and convert from KB to GB.
-    local mem_data; mem_data=$(awk '
+    local mem_data
+    mem_data=$(awk '
         /^MemTotal:/ {t=$2}
         /^MemAvailable:/ {a=$2}
-        END {printf "%.2f %.2f", t/1024/1024, a/1024/1024}
+        END {
+            used = t - a
+            printf "%.2f %.2f %.2f", t/1024/1024, used/1024/1024, a/1024/1024
+        }
     ' /proc/meminfo)
-    read -r total_gb avail_gb <<< "$mem_data"
-    local used_gb; used_gb=$(echo "$total_gb - $avail_gb" | bc -l)
+    read -r total_gb used_gb avail_gb <<< "$mem_data"
 
     printf "  ${YELLOW}Total RAM${NC}: ${total_gb} GB\t${YELLOW}Used${NC}: ${used_gb} GB\t${YELLOW}Available${NC}: ${avail_gb} GB\n"
     print_bar "Usage" "$used_gb" "$total_gb" "$MAGENTA" "$BRIGHT_BLACK"
@@ -81,17 +164,19 @@ get_ram_info() {
 get_swap_info() {
     if [[ ! -r "/proc/meminfo" ]]; then return 1; fi
 
-    local swap_data; swap_data=$(awk '
+    local swap_data
+    swap_data=$(awk '
         /^SwapTotal:/ {st=$2}
         /^SwapFree:/ {sf=$2}
-        END {printf "%.2f %.2f", st/1024/1024, sf/1024/1024}
+        END {
+            used = st - sf
+            printf "%.2f %.2f %.2f", st/1024/1024, used/1024/1024, sf/1024/1024
+        }
     ' /proc/meminfo)
-    read -r total_gb free_gb <<< "$swap_data"
+    read -r total_gb used_gb free_gb <<< "$swap_data"
 
-    # Only display swap info if swap is configured and used.
-    if (( $(echo "$total_gb > 0" | bc -l) )); then
-        local used_gb; used_gb=$(echo "$total_gb - $free_gb" | bc -l)
-        if (( $(echo "$used_gb > 0.01" | bc -l) )); then
+    if awk -v total="$total_gb" 'BEGIN {exit !(total > 0)}'; then
+        if awk -v used="$used_gb" 'BEGIN {exit !(used > 0.01)}'; then
             printf "\n"
             printf "  ${YELLOW}Total Swap${NC}: ${total_gb} GB\t${YELLOW}Used${NC}: ${used_gb} GB\t${YELLOW}Available${NC}: ${free_gb} GB\n"
             print_bar "Usage" "$used_gb" "$total_gb" "$CYAN" "$BRIGHT_BLACK"
@@ -103,8 +188,8 @@ get_swap_info() {
 # If all modules are of the same type, that type is returned.
 # If types are mixed, it returns "Mixed". If no modules are found, it returns "-".
 get_supported_mem_type() {
-    local dmi_output
-    if ! dmi_output=$(dmidecode --type 17 2>/dev/null); then
+    local dmi_output="$1"
+    if [[ -z "$dmi_output" ]]; then
         echo "-"
         return
     fi
@@ -141,8 +226,10 @@ get_supported_mem_type() {
 get_array_info() {
     printf "${CYAN}${BOLD}📖 Memory Array Info${NC}\n"
 
-    local array_info;
-    if ! array_info=$(dmidecode -t 16 2>/dev/null); then
+    local array_info="$1"
+    local module_info="$2"
+
+    if [[ -z "$array_info" ]]; then
         printf "  ${YELLOW}Physical memory array information is not available.${NC}\n\n"
         return
     fi
@@ -150,7 +237,7 @@ get_array_info() {
     local max_capacity; max_capacity=$(get_val_from_block "$array_info" "Maximum Capacity")
     local num_devices; num_devices=$(get_val_from_block "$array_info" "Number Of Devices")
     local ecc_type; ecc_type=$(get_val_from_block "$array_info" "Error Correction Type")
-    local mem_type; mem_type=$(get_supported_mem_type)
+    local mem_type; mem_type=$(get_supported_mem_type "$module_info")
 
 
     printf "  ${YELLOW}Max. Capacity${NC}: %s (%s slots)\n" "$max_capacity" "$num_devices"
@@ -163,9 +250,15 @@ get_array_info() {
 parse_dmi_block() {
     local block="$1"
 
+    local slot locator
+    slot=$(get_val_from_block "$block" "Locator")
+    locator=$(get_val_from_block "$block" "Bank Locator")
+    locator=$(format_bank_locator "$locator")
+    locator=$(decorate_bank_label "$locator")
+
     printf "  ${MAGENTA}🧠 Slot${NC}: %-20s ${MAGENTA}📍 Bank${NC}: %s\n" \
-        "$(get_val_from_block "$block" "Locator")" \
-        "$(get_val_from_block "$block" "Bank Locator")"
+        "$slot" \
+        "$locator"
 
     printf "  ${MAGENTA}📦 Size${NC}: %s\n" "$(get_val_from_block "$block" "Size")"
     printf "  ${MAGENTA}🏭 Manufacturer${NC}: %s\n" "$(get_val_from_block "$block" "Manufacturer")"
@@ -184,8 +277,8 @@ parse_dmi_block() {
 print_dmi_details() {
     printf "${CYAN}${BOLD}📗 Memory Modules (DIMMs)${NC}\n"
 
-    local dmi_output;
-    if ! dmi_output=$(dmidecode --type 17 2>/dev/null); then
+    local dmi_output="$1"
+    if [[ -z "$dmi_output" ]]; then
         printf "  ${YELLOW}Could not retrieve DMI data. Skipping module details.${NC}\n\n"
         return
     fi
@@ -208,25 +301,37 @@ print_dmi_details() {
 
 # Main function to orchestrate the script's execution.
 main() {
+    local has_root=1
     if [[ "$EUID" -ne 0 ]]; then
-      printf "${RED}This script requires root privileges.${NC}\n" >&2
-      exit 1
+      has_root=0
+      printf "${YELLOW}Some information requires root privileges. Run with sudo for full output.${NC}\n\n" >&2
     fi
 
     printf "${GREEN}${BOLD}📦 mfetch-bash${NC} "
     printf "${BRIGHT_BLACK}[memory-focused system info tool]\n\n${NC}"
 
-    # Ensure required commands are available before proceeding.
-    check_command "dmidecode"
-    check_command "bc"
+    local dmi_array_output=""
+    local dmi_module_output=""
+
+    if (( has_root )); then
+        # Ensure required commands are available before proceeding.
+        check_command "dmidecode"
+
+        if ! dmi_array_output=$(dmidecode -t 16 2>/dev/null); then
+            dmi_array_output=""
+        fi
+        if ! dmi_module_output=$(dmidecode --type 17 2>/dev/null); then
+            dmi_module_output=""
+        fi
+    fi
 
     # The order of execution for information gathering and display.
-    get_array_info
+    get_array_info "$dmi_array_output" "$dmi_module_output"
     get_ram_info
     get_swap_info
     printf "\n"
-    print_dmi_details
+    print_dmi_details "$dmi_module_output"
 }
 
 # Entry point of the script.
-main
+main "$@"
