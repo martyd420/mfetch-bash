@@ -11,6 +11,13 @@ This script is a Bash reimplementation heavily inspired by the original `mfetch`
 curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/master/mfetch.sh | sudo bash
 ```
 
+Running without `sudo` keeps the oneliner simple, but the script will skip DIMM details because `dmidecode` requires elevated
+privileges:
+
+```bash
+curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/master/mfetch.sh | bash
+```
+
 To use a specific, immutable (but old) commit, you can specify the commit SHA directly. This ensures the script you download is exactly what you've reviewed and will never change.
 
 ```bash
