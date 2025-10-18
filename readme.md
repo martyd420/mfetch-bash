@@ -35,18 +35,17 @@ curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/4ee713f9378c7607
 
 ## Requirements
 
-1.  **Root privileges:** The script requires `sudo` to access hardware information via `dmidecode`.
+1.  **Root privileges (recommended):** Running with `sudo` enables access to hardware information via `dmidecode`. Without root you will still see RAM and swap usage, but DIMM details are omitted.
 2.  **The `dmidecode` command:** A utility to read DMI (Desktop Management Interface) tables.
-3.  **The `bc` command:** An arbitrary precision calculator, used for floating-point calculations.
 
-If you are missing any of these tools, you can install them using your distribution's package manager:
+If you are missing `dmidecode`, you can install it using your distribution's package manager:
 
 -   **On Debian/Ubuntu:**
     ```bash
     sudo apt-get update
-    sudo apt-get install dmidecode bc
+    sudo apt-get install dmidecode
     ```
 -   **On Fedora/CentOS/RHEL:**
     ```bash
-    sudo dnf install dmidecode bc
+    sudo dnf install dmidecode
     ```
