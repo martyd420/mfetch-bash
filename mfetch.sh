@@ -13,6 +13,62 @@ BRIGHT_BLACK='\033[0;90m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+declare -A BANK_OCCURRENCES=()
+
+# Normalizes the "Bank Locator" value into a more descriptive label.
+# Many vendors report values such as "P0 CHANNEL A" where the "P" prefix
+# references the physical CPU socket.  Converting them to a readable form
+# makes it obvious which channel the DIMM belongs to.
+format_bank_locator() {
+    local raw="$1"
+    if [[ -z "$raw" || "$raw" == "-" ]]; then
+        printf '-\n'
+        return
+    fi
+
+    local trimmed
+    trimmed=$(printf '%s\n' "$raw" | awk '{$1=$1; print}')
+
+    if [[ "$trimmed" =~ ^P([0-9]+)[[:space:]]+CHANNEL[[:space:]]+(.+)$ ]]; then
+        local cpu="${BASH_REMATCH[1]}"
+        local channel="${BASH_REMATCH[2]}"
+        printf 'CPU %s / Channel %s\n' "$cpu" "$channel"
+        return
+    fi
+
+    if [[ "$trimmed" =~ ^P([0-9]+)[[:space:]]+BANK[[:space:]]+([0-9]+)$ ]]; then
+        local cpu="${BASH_REMATCH[1]}"
+        local bank="${BASH_REMATCH[2]}"
+        printf 'CPU %s / Bank %s\n' "$cpu" "$bank"
+        return
+    fi
+
+    printf '%s\n' "$trimmed"
+}
+
+# Adds a stable suffix when multiple DIMMs report the same bank label so the
+# output stays unique even on platforms that duplicate the vendor string.
+decorate_bank_label() {
+    local label="$1"
+
+    if [[ -z "$label" || "$label" == "-" ]]; then
+        printf '-\n'
+        return
+    fi
+
+    local count=1
+    if [[ -v BANK_OCCURRENCES[$label] ]]; then
+        count=$(( BANK_OCCURRENCES[$label] + 1 ))
+    fi
+    BANK_OCCURRENCES[$label]=$count
+
+    if (( count > 1 )); then
+        printf '%s (module #%d)\n' "$label" "$count"
+    else
+        printf '%s\n' "$label"
+    fi
+}
+
 # Generic function to extract a value for a given key from a block of text.
 # It's designed to be resilient, returning "-" if the key is not found.
 get_val_from_block() {
@@ -194,9 +250,15 @@ get_array_info() {
 parse_dmi_block() {
     local block="$1"
 
+    local slot locator
+    slot=$(get_val_from_block "$block" "Locator")
+    locator=$(get_val_from_block "$block" "Bank Locator")
+    locator=$(format_bank_locator "$locator")
+    locator=$(decorate_bank_label "$locator")
+
     printf "  ${MAGENTA}🧠 Slot${NC}: %-20s ${MAGENTA}📍 Bank${NC}: %s\n" \
-        "$(get_val_from_block "$block" "Locator")" \
-        "$(get_val_from_block "$block" "Bank Locator")"
+        "$slot" \
+        "$locator"
 
     printf "  ${MAGENTA}📦 Size${NC}: %s\n" "$(get_val_from_block "$block" "Size")"
     printf "  ${MAGENTA}🏭 Manufacturer${NC}: %s\n" "$(get_val_from_block "$block" "Manufacturer")"
