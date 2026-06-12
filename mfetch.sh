@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2059  # Color variables are constants defined below and
+# are intentionally embedded in printf format strings for readability.
 
 set -euo pipefail
 
@@ -136,7 +138,8 @@ print_bar() {
     filled_segment=$(printf "%${filled_blocks}s" | tr ' ' "$FILLED_CHAR")
     empty_segment=$(printf "%${empty_blocks}s" | tr ' ' "$EMPTY_CHAR")
 
-    printf "  ${label}: [${filled_color}%s${empty_color}%s${NC}] ${percentage}%%\n" "$filled_segment" "$empty_segment"
+    printf "  %s: [${filled_color}%s${empty_color}%s${NC}] %s%%\n" \
+        "$label" "$filled_segment" "$empty_segment" "$percentage"
 }
 
 # Gathers and displays information about RAM usage from /proc/meminfo.
