@@ -198,9 +198,14 @@ get_array_info() {
 
     local array_info="$1"
     local module_info="$2"
+    local has_root="$3"
 
     if [[ -z "$array_info" ]]; then
-        printf "  ${YELLOW}Physical memory array information is not available.${NC}\n\n"
+        if (( has_root )); then
+            printf "  ${YELLOW}Physical memory array information is not available.${NC}\n\n"
+        else
+            printf "  ${YELLOW}Requires root privileges. Run with sudo to see this section.${NC}\n\n"
+        fi
         return
     fi
 
@@ -242,8 +247,13 @@ print_dmi_details() {
     printf "${CYAN}${BOLD}📗 Memory Modules (DIMMs)${NC}\n"
 
     local dmi_output="$1"
+    local has_root="$2"
     if [[ -z "$dmi_output" ]]; then
-        printf "  ${YELLOW}Could not retrieve DMI data. Skipping module details.${NC}\n\n"
+        if (( has_root )); then
+            printf "  ${YELLOW}Could not retrieve DMI data. Skipping module details.${NC}\n\n"
+        else
+            printf "  ${YELLOW}Requires root privileges. Run with sudo to see this section.${NC}\n\n"
+        fi
         return
     fi
 
@@ -290,11 +300,11 @@ main() {
     fi
 
     # The order of execution for information gathering and display.
-    get_array_info "$dmi_array_output" "$dmi_module_output"
+    get_array_info "$dmi_array_output" "$dmi_module_output" "$has_root"
     get_ram_info
     get_swap_info
     printf "\n"
-    print_dmi_details "$dmi_module_output"
+    print_dmi_details "$dmi_module_output" "$has_root"
 }
 
 # Entry point of the script.
