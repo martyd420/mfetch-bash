@@ -109,21 +109,24 @@ print_bar() {
 
 # Gathers and displays information about RAM usage from /proc/meminfo.
 get_ram_info() {
-    if [[ ! -r "/proc/meminfo" ]]; then
-        printf "${RED}ERROR: Cannot read /proc/meminfo.${NC}\n\n" >&2
-        return 1
-    fi
+    local meminfo="$1"
 
-    # Extract memory values and convert from KB to GB.
+    # Extract memory values and convert from KB to GB. Kernels older than
+    # 3.14 lack MemAvailable; approximate it with MemFree+Buffers+Cached.
     local mem_data
-    mem_data=$(awk '
+    mem_data=$(printf '%s\n' "$meminfo" | awk '
         /^MemTotal:/ {t=$2}
-        /^MemAvailable:/ {a=$2}
+        /^MemAvailable:/ {a=$2; have_avail=1}
+        /^MemFree:/ {f=$2}
+        /^Buffers:/ {b=$2}
+        /^Cached:/ {c=$2}
         END {
+            if (!have_avail) a = f + b + c
             used = t - a
             printf "%.2f %.2f %.2f", t/1024/1024, used/1024/1024, a/1024/1024
         }
-    ' /proc/meminfo)
+    ')
+    local total_gb used_gb avail_gb
     read -r total_gb used_gb avail_gb <<< "$mem_data"
 
     printf "  ${YELLOW}Total RAM${NC}: ${total_gb} GB\t${YELLOW}Used${NC}: ${used_gb} GB\t${YELLOW}Available${NC}: ${avail_gb} GB\n"
@@ -132,17 +135,18 @@ get_ram_info() {
 
 # Gathers and displays information about Swap usage from /proc/meminfo.
 get_swap_info() {
-    if [[ ! -r "/proc/meminfo" ]]; then return 1; fi
+    local meminfo="$1"
 
     local swap_data
-    swap_data=$(awk '
+    swap_data=$(printf '%s\n' "$meminfo" | awk '
         /^SwapTotal:/ {st=$2}
         /^SwapFree:/ {sf=$2}
         END {
             used = st - sf
             printf "%.2f %.2f %.2f", st/1024/1024, used/1024/1024, sf/1024/1024
         }
-    ' /proc/meminfo)
+    ')
+    local total_gb used_gb free_gb
     read -r total_gb used_gb free_gb <<< "$swap_data"
 
     if awk -v total="$total_gb" 'BEGIN {exit !(total > 0)}'; then
@@ -284,6 +288,14 @@ main() {
     printf "${GREEN}${BOLD}📦 mfetch-bash${NC} "
     printf "${BRIGHT_BLACK}[memory-focused system info tool]\n\n${NC}"
 
+    # Read /proc/meminfo once; both the RAM and Swap sections parse it.
+    local meminfo=""
+    if [[ -r "/proc/meminfo" ]]; then
+        meminfo=$(</proc/meminfo)
+    else
+        printf "${RED}ERROR: Cannot read /proc/meminfo.${NC}\n\n" >&2
+    fi
+
     local dmi_array_output=""
     local dmi_module_output=""
 
@@ -301,8 +313,10 @@ main() {
 
     # The order of execution for information gathering and display.
     get_array_info "$dmi_array_output" "$dmi_module_output" "$has_root"
-    get_ram_info
-    get_swap_info
+    if [[ -n "$meminfo" ]]; then
+        get_ram_info "$meminfo"
+        get_swap_info "$meminfo"
+    fi
     printf "\n"
     print_dmi_details "$dmi_module_output" "$has_root"
 }
