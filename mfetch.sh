@@ -81,7 +81,7 @@ get_val_from_block() {
     if [[ -n "$value" ]]; then
         printf '%s\n' "$value"
     else
-        printf '-\n'
+        printf '%s\n' "-"
     fi
 }
 
