@@ -150,7 +150,7 @@ get_supported_mem_type() {
                 types+=("$type")
             fi
         fi
-    done < <(printf '%s\0' "$dmi_output" | awk -v RS='\n\n' -v ORS='\0' '{print $0}')
+    done < <(printf '%s\0' "$dmi_output" | awk -v RS= -v ORS='\0' '{print $0}')
 
     if (( ${#types[@]} == 0 )); then
         echo "-"
@@ -232,7 +232,7 @@ print_dmi_details() {
             parse_dmi_block "$block"
             blocks_found=1
         fi
-    done < <(printf '%s\0' "$dmi_output" | awk -v RS='\n\n' -v ORS='\0' '{print $0}')
+    done < <(printf '%s\0' "$dmi_output" | awk -v RS= -v ORS='\0' '{print $0}')
 
     if (( blocks_found == 0 )); then
         printf "  ${YELLOW}No memory modules were identified.${NC}\n\n"
