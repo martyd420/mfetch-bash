@@ -158,6 +158,20 @@ get_swap_info() {
     fi
 }
 
+# Emits the dmidecode blocks of installed memory modules, NUL-separated.
+# Blocks are sets of lines separated by blank lines; slots without a module
+# are skipped.
+installed_module_blocks() {
+    local dmi_output="$1"
+    local block
+    while IFS= read -r -d '' block; do
+        if [[ "$block" == *"Size: No Module Installed"* ]]; then continue; fi
+        if [[ "$block" == *"Size:"* ]]; then
+            printf '%s\0' "$block"
+        fi
+    done < <(printf '%s\0' "$dmi_output" | awk -v RS= -v ORS='\0' '{print $0}')
+}
+
 # Determines the supported memory type by checking all installed memory modules.
 # If all modules are of the same type, that type is returned.
 # If types are mixed, it returns "Mixed". If no modules are found, it returns "-".
@@ -169,16 +183,13 @@ get_supported_mem_type() {
     fi
 
     local types=()
+    local block type
     while IFS= read -r -d '' block; do
-        if [[ "$block" == *"Size: No Module Installed"* ]]; then continue; fi
-        if [[ "$block" == *"Size:"* ]]; then
-            local type
-            type=$(get_val_from_block "$block" "Type")
-            if [[ "$type" != "-" ]]; then
-                types+=("$type")
-            fi
+        type=$(get_val_from_block "$block" "Type")
+        if [[ "$type" != "-" ]]; then
+            types+=("$type")
         fi
-    done < <(printf '%s\0' "$dmi_output" | awk -v RS= -v ORS='\0' '{print $0}')
+    done < <(installed_module_blocks "$dmi_output")
 
     if (( ${#types[@]} == 0 )); then
         echo "-"
@@ -261,16 +272,12 @@ print_dmi_details() {
         return
     fi
 
-    # Process each memory module block from dmidecode output.
-    # A block is defined as a set of lines separated by double newlines.
     local blocks_found=0
+    local block
     while IFS= read -r -d '' block; do
-        if [[ "$block" == *"Size: No Module Installed"* ]]; then continue; fi
-        if [[ "$block" == *"Size:"* ]]; then
-            parse_dmi_block "$block"
-            blocks_found=1
-        fi
-    done < <(printf '%s\0' "$dmi_output" | awk -v RS= -v ORS='\0' '{print $0}')
+        parse_dmi_block "$block"
+        blocks_found=1
+    done < <(installed_module_blocks "$dmi_output")
 
     if (( blocks_found == 0 )); then
         printf "  ${YELLOW}No memory modules were identified.${NC}\n\n"
