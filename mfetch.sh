@@ -282,7 +282,17 @@ parse_dmi_block() {
     printf "  ${MAGENTA}🆔 Serial Number${NC}: %s\n" "$(get_val_from_block "$block" "Serial Number")"
     printf "  ${MAGENTA}📝 Form Factor${NC}: %s\n" "$(get_val_from_block "$block" "Form Factor")"
     printf "  ${MAGENTA}⚡ Type${NC}: %s\n" "$(get_val_from_block "$block" "Type")"
+    # The actual running speed can differ from the rated one (XMP profiles,
+    # downclocking with all slots populated). dmidecode older than 3.0 calls
+    # the field "Configured Clock Speed" instead of "Configured Memory Speed".
+    local configured_speed
+    configured_speed=$(get_val_from_block "$block" "Configured Memory Speed")
+    if [[ "$configured_speed" == "-" ]]; then
+        configured_speed=$(get_val_from_block "$block" "Configured Clock Speed")
+    fi
+
     printf "  ${MAGENTA}💨 Speed${NC}: %s\n" "$(get_val_from_block "$block" "Speed")"
+    printf "  ${MAGENTA}🚀 Configured Speed${NC}: %s\n" "$configured_speed"
     printf "  ${MAGENTA}↔️ Data Width${NC}: %s\n" "$(get_val_from_block "$block" "Data Width")"
     printf "  ${MAGENTA}↕️ Total Width${NC}: %s\n" "$(get_val_from_block "$block" "Total Width")"
     printf "  ${MAGENTA}🔌 Voltage${NC}: %s\n" "$(get_val_from_block "$block" "Configured Voltage")"
