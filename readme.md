@@ -42,12 +42,11 @@ Colors are also disabled automatically when the output is not a terminal (e.g. w
 
 -   **Current Memory Usage:** Displays total, used, and available RAM with a graphical usage bar.
 -   **Swap Usage:** If swap is in use, it shows its total size, used space, and free space.
--   **Memory Array Info:** Shows the maximum supported RAM capacity and the total number of memory slots on the motherboard.
+-   **Memory Array Info:** Shows the maximum supported RAM capacity, the total number of memory slots on the motherboard, the supported memory type, and ECC (Error Correction) support.
 -   **Detailed Module Information:** For each installed memory module (DIMM), it lists:
     -   Location (Slot & Bank)
     -   Size (e.g., 8 GB)
-    -   Type and Speed (e.g., DDR4, 3200 MT/s)
-    -   ECC (Error Correction) Support
+    -   Type and Speed (e.g., DDR4, 3200 MT/s), including the configured (actual) speed
     -   Configured Voltage
 
 ## Requirements
