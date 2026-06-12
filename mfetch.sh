@@ -6,14 +6,38 @@ set -euo pipefail
 # point, regardless of the user's locale.
 export LC_ALL=C
 
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-YELLOW='\033[0;33m'
-MAGENTA='\033[0;35m'
-RED='\033[0;31m'
-BRIGHT_BLACK='\033[0;90m'
-BOLD='\033[1m'
-NC='\033[0m'
+# Colors are enabled only when stdout is a terminal, and can be disabled
+# explicitly with the NO_COLOR environment variable (https://no-color.org)
+# or the --no-color option.
+use_color=0
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    use_color=1
+fi
+for arg in "$@"; do
+    if [[ "$arg" == "--no-color" ]]; then
+        use_color=0
+    fi
+done
+
+if (( use_color )); then
+    GREEN='\033[0;32m'
+    CYAN='\033[0;36m'
+    YELLOW='\033[0;33m'
+    MAGENTA='\033[0;35m'
+    RED='\033[0;31m'
+    BRIGHT_BLACK='\033[0;90m'
+    BOLD='\033[1m'
+    NC='\033[0m'
+else
+    GREEN=''
+    CYAN=''
+    YELLOW=''
+    MAGENTA=''
+    RED=''
+    BRIGHT_BLACK=''
+    BOLD=''
+    NC=''
+fi
 
 # Generic function to extract a value for a given key from a block of text.
 # It's designed to be resilient, returning "-" if the key is not found.
