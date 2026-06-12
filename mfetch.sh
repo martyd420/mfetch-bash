@@ -161,7 +161,8 @@ get_ram_info() {
     local total_gb used_gb avail_gb
     read -r total_gb used_gb avail_gb <<< "$mem_data"
 
-    printf "  ${YELLOW}Total RAM${NC}: ${total_gb} GB\t${YELLOW}Used${NC}: ${used_gb} GB\t${YELLOW}Available${NC}: ${avail_gb} GB\n"
+    printf "  ${YELLOW}%s${NC}: %-12s${YELLOW}%s${NC}: %-12s${YELLOW}%s${NC}: %s\n" \
+        "Total RAM" "${total_gb} GB" "Used" "${used_gb} GB" "Available" "${avail_gb} GB"
     print_bar "Usage" "$used_gb" "$total_gb" "$MAGENTA" "$BRIGHT_BLACK"
 }
 
@@ -184,7 +185,8 @@ get_swap_info() {
     if awk -v total="$total_gb" 'BEGIN {exit !(total > 0)}'; then
         if awk -v used="$used_gb" 'BEGIN {exit !(used > 0.01)}'; then
             printf "\n"
-            printf "  ${YELLOW}Total Swap${NC}: ${total_gb} GB\t${YELLOW}Used${NC}: ${used_gb} GB\t${YELLOW}Available${NC}: ${free_gb} GB\n"
+            printf "  ${YELLOW}%s${NC}: %-12s${YELLOW}%s${NC}: %-12s${YELLOW}%s${NC}: %s\n" \
+                "Total Swap" "${total_gb} GB" "Used" "${used_gb} GB" "Available" "${free_gb} GB"
             print_bar "Usage" "$used_gb" "$total_gb" "$CYAN" "$BRIGHT_BLACK"
         fi
     fi
