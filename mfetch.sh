@@ -2,7 +2,9 @@
 
 set -euo pipefail
 
-LC_NUMERIC="C"
+# Force the C locale so awk always formats and parses numbers with a decimal
+# point, regardless of the user's locale.
+export LC_ALL=C
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
