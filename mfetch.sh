@@ -6,6 +6,22 @@ set -euo pipefail
 # point, regardless of the user's locale.
 export LC_ALL=C
 
+VERSION="1.0.0"
+
+print_usage() {
+    cat <<EOF
+Usage: mfetch.sh [OPTIONS]
+
+A memory-focused system info tool. Shows RAM and swap usage and, when run
+with root privileges, details about the physical memory modules (DIMMs).
+
+Options:
+  --no-color     Disable colored output (the NO_COLOR env var works too)
+  -h, --help     Show this help and exit
+  -V, --version  Show version and exit
+EOF
+}
+
 # Colors are enabled only when stdout is a terminal, and can be disabled
 # explicitly with the NO_COLOR environment variable (https://no-color.org)
 # or the --no-color option.
@@ -13,10 +29,26 @@ use_color=0
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
     use_color=1
 fi
+
 for arg in "$@"; do
-    if [[ "$arg" == "--no-color" ]]; then
-        use_color=0
-    fi
+    case "$arg" in
+        --no-color)
+            use_color=0
+            ;;
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        -V|--version)
+            printf 'mfetch-bash %s\n' "$VERSION"
+            exit 0
+            ;;
+        *)
+            printf 'ERROR: Unknown option: %s\n\n' "$arg" >&2
+            print_usage >&2
+            exit 1
+            ;;
+    esac
 done
 
 if (( use_color )); then

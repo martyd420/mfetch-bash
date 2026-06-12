@@ -24,6 +24,16 @@ To use a specific, immutable (but old) commit, you can specify the commit SHA di
 curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/4ee713f9378c76070f3c2d0ba11fabf454dfd8f9/mfetch.sh | sudo bash
 ```
 
+### Options
+
+| Option | Description |
+| --- | --- |
+| `--no-color` | Disable colored output (the [`NO_COLOR`](https://no-color.org) environment variable is honored too) |
+| `-h`, `--help` | Show help and exit |
+| `-V`, `--version` | Show version and exit |
+
+Colors are also disabled automatically when the output is not a terminal (e.g. when piping to a file).
+
 ### Screenshot
 
 ![Screenshot](screenshot.png)
