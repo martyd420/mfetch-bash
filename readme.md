@@ -62,6 +62,14 @@ combined total and a process count:
 sudo ./mfetch.sh -p 5
 ```
 
+As a oneliner, pass the option through `bash -s --` so it reaches the script
+instead of `bash` itself (`-s` reads the script from stdin, `--` ends bash's own
+options):
+
+```bash
+curl -s https://raw.githubusercontent.com/martyd420/mfetch-bash/master/mfetch.sh | sudo bash -s -- -p 5
+```
+
 Memory is measured as **PSS** (proportional set size) read from
 `/proc/<pid>/smaps_rollup`, which counts shared pages only once — important when
 summing many workers that share the same libraries. When PSS is unavailable
