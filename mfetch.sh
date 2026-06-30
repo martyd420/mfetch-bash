@@ -18,9 +18,12 @@ A memory-focused system info tool. Shows RAM and swap usage and, when run
 with root privileges, details about the physical memory modules (DIMMs).
 
 Options:
-  --no-color     Disable colored output (the NO_COLOR env var works too)
-  -h, --help     Show this help and exit
-  -V, --version  Show version and exit
+  -p, --processes N  List the top N memory-consuming process groups. Processes
+                     are grouped by name (e.g. all "apache2" workers together)
+                     and their memory is summed (PSS where available, else RSS)
+  --no-color         Disable colored output (the NO_COLOR env var works too)
+  -h, --help         Show this help and exit
+  -V, --version      Show version and exit
 EOF
 }
 
@@ -32,8 +35,31 @@ if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
     use_color=1
 fi
 
-for arg in "$@"; do
-    case "$arg" in
+# Number of top process groups to list (0 = section disabled).
+top_count=0
+
+# Validates that the given value is a positive integer; exits otherwise.
+require_positive_int() {
+    local opt="$1"
+    local value="$2"
+    if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+        printf 'ERROR: %s requires a positive integer argument\n\n' "$opt" >&2
+        print_usage >&2
+        exit 1
+    fi
+}
+
+while (( $# )); do
+    case "$1" in
+        -p|--processes)
+            require_positive_int "$1" "${2:-}"
+            top_count="$2"
+            shift
+            ;;
+        --processes=*)
+            require_positive_int "--processes" "${1#*=}"
+            top_count="${1#*=}"
+            ;;
         --no-color)
             use_color=0
             ;;
@@ -46,11 +72,12 @@ for arg in "$@"; do
             exit 0
             ;;
         *)
-            printf 'ERROR: Unknown option: %s\n\n' "$arg" >&2
+            printf 'ERROR: Unknown option: %s\n\n' "$1" >&2
             print_usage >&2
             exit 1
             ;;
     esac
+    shift
 done
 
 if (( use_color )); then
@@ -331,6 +358,84 @@ print_dmi_details() {
     fi
 }
 
+# Emits "<kb>\t<comm>" for every running process, where <kb> is the process's
+# memory footprint. PSS (proportional set size, from smaps_rollup) is preferred
+# because it counts shared pages only once, which matters when summing many
+# workers that share libraries; it falls back to RSS (from statm) when
+# smaps_rollup is missing (older kernels) or unreadable (other users' processes
+# without root).
+emit_process_mem() {
+    local page_kb=$(( $(getconf PAGE_SIZE) / 1024 ))
+    local d comm kb key val pages
+
+    for d in /proc/[0-9]*; do
+        [[ -d "$d" ]] || continue
+        read -r comm < "$d/comm" 2>/dev/null || continue
+        [[ -n "$comm" ]] || continue
+
+        kb=""
+        if [[ -r "$d/smaps_rollup" ]]; then
+            while read -r key val _; do
+                if [[ "$key" == "Pss:" ]]; then
+                    kb="$val"
+                    break
+                fi
+            done < "$d/smaps_rollup" 2>/dev/null || true
+        fi
+
+        # Fall back to RSS: field 2 of statm is the resident set in pages.
+        if [[ -z "$kb" && -r "$d/statm" ]]; then
+            if read -r _ pages _ < "$d/statm" 2>/dev/null; then
+                kb=$(( pages * page_kb ))
+            fi
+        fi
+
+        [[ -n "$kb" ]] || continue
+        printf '%s\t%s\n' "$kb" "$comm"
+    done
+}
+
+# Lists the top N process groups by summed memory usage, grouped by name.
+get_top_processes() {
+    printf "${CYAN}${BOLD}📊 Top Processes by Memory${NC}\n"
+
+    local count="$1"
+    local has_root="$2"
+
+    local rows
+    # head closing the pipe early makes upstream exit with SIGPIPE under
+    # 'pipefail'; the captured output is still complete, so ignore that status.
+    rows=$(emit_process_mem | awk -F'\t' '
+        { sum[$2] += $1; cnt[$2]++ }
+        END { for (k in sum) printf "%d\t%d\t%s\n", sum[k], cnt[k], k }
+    ' | sort -rn -k1,1 | head -n "$count") || true
+
+    if [[ -z "$rows" ]]; then
+        printf "  ${YELLOW}No process information available.${NC}\n\n"
+        return
+    fi
+
+    printf "  ${BRIGHT_BLACK}(grouped by name; PSS where available, otherwise RSS)${NC}\n"
+    if (( ! has_root )); then
+        printf "  ${BRIGHT_BLACK}Run with sudo for accurate accounting of other users' processes.${NC}\n"
+    fi
+
+    local kb cnt name human
+    while IFS=$'\t' read -r kb cnt name; do
+        human=$(awk -v kb="$kb" 'BEGIN {
+            mb = kb / 1024
+            if (mb >= 1024) {
+                printf "%.2f GB", mb / 1024
+            } else {
+                printf "%.1f MB", mb
+            }
+        }')
+        printf "  ${MAGENTA}%-18s${NC} %12s  ${BRIGHT_BLACK}(%s proc)${NC}\n" \
+            "$name" "$human" "$cnt"
+    done <<< "$rows"
+    printf "\n"
+}
+
 # Main function to orchestrate the script's execution.
 main() {
     local has_root=1
@@ -373,6 +478,11 @@ main() {
     fi
     printf "\n"
     print_dmi_details "$dmi_module_output" "$has_root"
+
+    if (( top_count > 0 )); then
+        printf "\n"
+        get_top_processes "$top_count" "$has_root"
+    fi
 }
 
 # Entry point of the script.
